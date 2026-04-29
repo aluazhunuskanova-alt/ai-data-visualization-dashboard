@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Data Visualization App</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #eef2ff, #f8fafc);
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #1e293b;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        }
+
+        .upload-section {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            font-size: 12px;
+        }
+
+        th {
+            background: #f1f5f9;
+        }
+
+        .loader {
+            display: none;
+            text-align: center;
+            font-weight: bold;
+            color: #4f46e5;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Data Visualization Dashboard</h1>
+
+    <div class="card upload-section">
+        <input type="file" id="fileInput">
+        <button onclick="uploadFile()">Analyze</button>
+    </div>
+
+    <div class="loader" id="loader">Analyzing dataset...</div>
+
+    <div class="card">
+        <h3>Data Preview</h3>
+        <div id="preview"></div>
+    </div>
+
+    <div class="card">
+        <h3>Insights</h3>
+        <div id="insights"></div>
+    </div>
+
+    <div class="card">
+        <h3>Scatter Plot</h3>
+        <div id="scatter"></div>
+    </div>
+
+    <div class="card">
+        <h3>Histogram</h3>
+        <div id="histogram"></div>
+    </div>
+
+    <div class="card">
+        <h3>Bar Chart</h3>
+        <div id="bar"></div>
+    </div>
+
+    <div class="card">
+        <h3>Box Plot</h3>
+        <div id="box"></div>
+    </div>
+
+    <div class="card">
+        <h3>Heatmap</h3>
+        <div id="heatmap"></div>
+    </div>
+
+    <div class="card">
+        <h3>ML Prediction Model</h3>
+        <div id="model"></div>
+    </div>
+
+</div>
+
+<script>
+function renderHTMLWithScripts(containerId, html) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = html;
+
+    const scripts = container.getElementsByTagName("script");
+
+    for (let i = 0; i < scripts.length; i++) {
+        const newScript = document.createElement("script");
+
+        if (scripts[i].src) {
+            newScript.src = scripts[i].src;
+        } else {
+            newScript.text = scripts[i].innerHTML;
+        }
+
+        document.body.appendChild(newScript);
+    }
+}
+
+function renderTable(data) {
+    if (!data.length) return "No data";
+
+    let html = "<table><tr>";
+
+    Object.keys(data[0]).forEach(key => {
+        html += `<th>${key}</th>`;
+    });
+
+    html += "</tr>";
+
+    data.forEach(row => {
+        html += "<tr>";
+        Object.values(row).forEach(val => {
+            html += `<td>${val}</td>`;
+        });
+        html += "</tr>";
+    });
+
+    html += "</table>";
+    return html;
+}
+
+async function uploadFile() {
+    const fileInput = document.getElementById('fileInput');
+
+    if (!fileInput.files.length) {
+        alert("Select a file");
+        return;
+    }
+
+    document.getElementById("loader").style.display = "block";
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    const response = await fetch("http://127.0.0.1:8000/analyze", {
+        method: "POST",
+        body: formData
+    });
+
+    const data = await response.json();
+
+    document.getElementById("loader").style.display = "none";
+
+    console.log("FULL RESPONSE:", data);
+
+    // Preview
+    if (data.preview) {
+        document.getElementById("preview").innerHTML = renderTable(data.preview);
+    }
+
+    // Insights
+    if (data.insights) {
+        let html = "<ul>";
+        data.insights.forEach(i => html += `<li>${i}</li>`);
+        html += "</ul>";
+        document.getElementById("insights").innerHTML = html;
+    }
+
+    // Charts
+    if (data.plots?.scatter) renderHTMLWithScripts("scatter", data.plots.scatter);
+    if (data.plots?.histogram) renderHTMLWithScripts("histogram", data.plots.histogram);
+    if (data.plots?.bar) renderHTMLWithScripts("bar", data.plots.bar);
+    if (data.plots?.box) renderHTMLWithScripts("box", data.plots.box);
+    if (data.correlation_heatmap) renderHTMLWithScripts("heatmap", data.correlation_heatmap);
+
+    // ✅ ML MODEL DISPLAY (THIS WAS MISSING)
+    if (data.model && !data.model.error) {
+        document.getElementById("model").innerHTML = `
+            <p><b>R² Score:</b> ${data.model.r2_score}</p>
+            <p><b>MSE:</b> ${data.model.mse}</p>
+
+            <h4>Feature Importance:</h4>
+            <ul>
+                ${Object.entries(data.model.coefficients)
+                    .map(([key, value]) => `<li>${key}: ${value.toFixed(3)}</li>`)
+                    .join("")}
+            </ul>
+        `;
+    } else {
+        document.getElementById("model").innerHTML = "Model could not be built";
+    }
+}
+</script>
+
+</body>
+</html>
